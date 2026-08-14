@@ -227,9 +227,21 @@ class AdminController extends Controller
 
     public function performance(Request $request)
     {
+        // Admins/HR can jump straight to a specific employee's detailed
+        // Performance breakdown (e.g. the "click here for more details" link
+        // from that employee's Profile → KPI & Performance tab) via
+        // ?employee={id}. Anyone else — or a missing/invalid override — just
+        // sees their own, exactly as before; same admin/super_admin check
+        // used everywhere else in this app (see AdminKpiJobController).
+        $isAdmin = in_array(auth()->user()?->role, ['super_admin', 'admin'], true);
+        $viewedEmployee = ($isAdmin && $request->filled('employee'))
+            ? \App\Models\Employee::with('division')->find($request->query('employee'))
+            : null;
+        $viewingOther = $viewedEmployee !== null;
+
         // clients.assigned_to stores an Employee ID, NOT the logged-in User's ID.
         // Resolve User → Employee first; $userId is the Employee PK used in every query.
-        $employee = \App\Models\Employee::with('division')->where('user_id', auth()->id())->first();
+        $employee = $viewedEmployee ?? \App\Models\Employee::with('division')->where('user_id', auth()->id())->first();
         $userId   = $employee?->id;
         $now      = now();
 
@@ -243,6 +255,8 @@ class AdminController extends Controller
             return view('admin.performance.index', [
                 'dashboardAvailable' => false,
                 'divisionName'       => $divisionName,
+                'viewingOther'       => $viewingOther,
+                'employee'           => $employee,
             ]);
         }
 
@@ -382,6 +396,7 @@ class AdminController extends Controller
 
             return view('admin.performance.index', compact(
                 'dashboardAvailable', 'divisionName',
+                'viewingOther', 'employee',
                 'selectedMonth', 'prevMonth', 'nextMonth', 'isCurrentMonth',
                 'monthlyTarget', 'quarterlyTarget', 'yearlyTarget',
                 'placementsThisMonth', 'placementsThisQuarter', 'placementsThisYear',
@@ -488,6 +503,7 @@ class AdminController extends Controller
 
         return view('admin.performance.index', compact(
             'dashboardAvailable', 'divisionName',
+            'viewingOther', 'employee',
             'selectedMonth', 'prevMonth', 'nextMonth', 'isCurrentMonth',
             'finMonthlyTarget', 'finQuarterlyTarget', 'finYearlyTarget',
             'finCollectedThisMonth', 'finCollectedThisQuarter', 'finCollectedThisYear',
@@ -654,6 +670,10 @@ class AdminController extends Controller
         // the employee's own Performance view always show the same numbers.
         $kpiTemplate = \App\Models\KpiTemplate::forEmployee($employee);
         $kpiGoalGroups = $kpiTemplate ? $kpiTemplate->goalGroups() : [];
+        // Compact single-number rollup for this tab's summary + motivational
+        // message; the full per-area/per-indicator breakdown now lives on the
+        // Performance page instead (see AdminController::performance()).
+        $kpiSummary = $kpiTemplate ? $kpiTemplate->overallSummary() : null;
 
         return view('admin.linkers-hub.employee-profile', [
             'employee'           => $employee,
@@ -669,6 +689,7 @@ class AdminController extends Controller
             'canAcceptDecline'   => $canAcceptDecline,
             'availableOpenShifts' => $availableOpenShifts,
             'kpiGoalGroups'      => $kpiGoalGroups,
+            'kpiSummary'         => $kpiSummary,
         ]);
     }
 

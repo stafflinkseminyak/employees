@@ -2268,17 +2268,77 @@
         </div>{{-- /tab-shifts --}}
 
         {{-- ===== KPI TAB ===== --}}
-        {{-- Read-only reference view of the KPI template assigned to this employee's
-             position (set on the KPI builder page, resolved via their contract's
-             division/sub-division). Shares its rendering + progress calculation with
-             the Performance page via KpiTemplate::goalGroups(), so the two can never
-             show different numbers for the same person. Editing targets still only
-             happens on the KPI builder page — this tab is for admins to quickly check
-             what a given employee's KPI is set to without leaving their profile. --}}
+        {{-- A compact "how are they doing" summary — not the full breakdown. That
+             lives on the Performance page (which this links to) so admins get a
+             quick read here without leaving the profile, and a single detailed
+             place to dig into what's done / pending / at risk. Both pull from the
+             same KpiTemplate::forEmployee() so the numbers can never disagree. --}}
         <div class="bhr-tab-pane" id="tab-kpi">
             <div style="padding:4px 4px 24px;">
-                <h3 style="font-size:1.05rem;font-weight:700;color:#1b4332;margin:0 0 4px;">🎯 KPI & Goals</h3>
-                <p style="font-size:0.82rem;color:#6b7280;margin:0 0 18px;">The weighted KPI targets set for {{ $employee->first_name }}'s position, and progress against them.</p>
+                <h3 style="font-size:1.05rem;font-weight:700;color:#1b4332;margin:0 0 4px;">🎯 KPI & Performance</h3>
+                <p style="font-size:0.82rem;color:#6b7280;margin:0 0 18px;">A quick summary of {{ $employee->first_name }}'s weighted KPI progress.</p>
+
+                @php
+                    $kpiFirstName = $employee->first_name;
+                    $kpiOverallPct = $kpiSummary['overall_pct'] ?? null;
+                    $kpiHasTemplate = $kpiSummary !== null;
+
+                    if (!$kpiHasTemplate) {
+                        $kpiEmoji = '📋'; $kpiMessage = "No KPI template has been set for {$kpiFirstName}'s position yet.";
+                    } elseif ($kpiOverallPct === null) {
+                        $kpiEmoji = '📋'; $kpiMessage = "Not enough progress data filled in yet to calculate {$kpiFirstName}'s overall score.";
+                    } elseif ($kpiOverallPct >= 100) {
+                        $kpiEmoji = '🎉'; $kpiMessage = "Amazing work, {$kpiFirstName}! Every KPI target has been achieved.";
+                    } elseif ($kpiOverallPct >= 80) {
+                        $kpiEmoji = '💪'; $kpiMessage = "Great job, {$kpiFirstName}! Almost at the finish line — {$kpiOverallPct}% achieved overall.";
+                    } elseif ($kpiOverallPct >= 50) {
+                        $kpiEmoji = '💪'; $kpiMessage = "Good job, {$kpiFirstName}! Solid progress at {$kpiOverallPct}% overall — keep it up.";
+                    } else {
+                        $kpiEmoji = '⚡'; $kpiMessage = "Let's pick up the pace, {$kpiFirstName} — only {$kpiOverallPct}% achieved so far.";
+                    }
+                @endphp
+
+                @php
+                    $kpiInProgressCount = $kpiHasTemplate
+                        ? max(0, $kpiSummary['total_indicators'] - $kpiSummary['achieved_count'] - $kpiSummary['at_risk_count'] - $kpiSummary['no_data_count'])
+                        : 0;
+                    $kpiAccentColor = $kpiSummary['status']['color'] ?? '#9ca3af';
+                @endphp
+
+                <div style="background:#fff;border:1px solid #e5e7eb;border-top:4px solid {{ $kpiAccentColor }};border-radius:14px;padding:20px 22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+                    <div style="flex-shrink:0;">{!! \App\Models\KpiTemplate::gaugeSvg($kpiOverallPct ?? 0, $kpiAccentColor) !!}</div>
+                    <div style="flex:1;min-width:220px;">
+                        <div style="font-size:1rem;font-weight:800;color:#1b4332;margin-bottom:8px;"><span style="font-size:1.2rem;margin-right:4px;">{{ $kpiEmoji }}</span>{{ $kpiMessage }}</div>
+                        @if($kpiHasTemplate)
+                            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                                @if($kpiSummary['achieved_count'] > 0)
+                                    <span style="font-size:0.72rem;font-weight:700;padding:4px 11px;border-radius:20px;background:#eaf3de;color:#27500a;">✅ {{ $kpiSummary['achieved_count'] }} achieved</span>
+                                @endif
+                                @if($kpiInProgressCount > 0)
+                                    <span style="font-size:0.72rem;font-weight:700;padding:4px 11px;border-radius:20px;background:#eeedfe;color:#3c3489;">💪 {{ $kpiInProgressCount }} in progress</span>
+                                @endif
+                                @if($kpiSummary['at_risk_count'] > 0)
+                                    <span style="font-size:0.72rem;font-weight:700;padding:4px 11px;border-radius:20px;background:#fcebeb;color:#a32d2d;">⚠️ {{ $kpiSummary['at_risk_count'] }} at risk</span>
+                                @endif
+                                @if($kpiSummary['no_data_count'] > 0)
+                                    <span style="font-size:0.72rem;font-weight:700;padding:4px 11px;border-radius:20px;background:#f3f4f6;color:#6b7280;">📋 {{ $kpiSummary['no_data_count'] }} no data yet</span>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                    <a href="{{ route('admin.performance.index', ['employee' => $employee->id]) }}"
+                       style="flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:10px 18px;font-size:0.82rem;font-weight:700;color:#fff;background-color:#1f5f46;border-radius:10px;text-decoration:none;white-space:nowrap;transition:background-color .15s;"
+                       onmouseover="this.style.backgroundColor='#287854'" onmouseout="this.style.backgroundColor='#1f5f46'">
+                        🔍 Click here for more details
+                        <svg style="width:14px;height:14px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+
+                {{-- The actual KPIs and how far along each one is — everything specific to
+                     day-to-day work (who was recruited, which clients, revenue, vacancies…)
+                     lives only on the Performance page linked above; this is just the KPI
+                     targets themselves and their progress. --}}
+                <h4 style="font-size:0.85rem;font-weight:700;color:#1b4332;margin:20px 0 10px;">📋 KPI Breakdown</h4>
                 @include('admin.kpi.goals-cards', ['groups' => $kpiGoalGroups ?? []])
             </div>
         </div>{{-- /tab-kpi --}}
