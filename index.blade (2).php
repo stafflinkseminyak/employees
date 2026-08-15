@@ -29,7 +29,7 @@ select {
 .lh-wrap{font-family:'Inter',sans-serif;color:#1e293b;min-height:100vh}
 
 /* ---- 2. Cards ---- */
-.lh-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;transition:box-shadow .2s,transform .15s}
+.lh-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:12px;transition:box-shadow .2s,transform .15s;min-width:0}
 .lh-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06);transform:translateY(-1px)}
 .lh-card.terminated{opacity:.55}
 .lh-card.joining-soon{opacity:.75}
@@ -254,7 +254,7 @@ select {
     .lh-toolbar-right{justify-content:flex-end}
     .lh-filter-input{min-width:120px}
     .lh-pagination{flex-direction:column;align-items:flex-start}
-    .cards-grid{grid-template-columns:repeat(2,1fr)!important}
+    .cards-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
 @media(max-width:480px){
     .cards-grid{grid-template-columns:1fr!important}
@@ -265,7 +265,7 @@ select {
 }
 
 /* ---- Utility ---- */
-.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:24px}
+.cards-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-bottom:24px}
 .division-heading{font-size:14px;font-weight:600;color:#64748b;margin:18px 0 10px;text-transform:uppercase;letter-spacing:.5px}
 .hidden{display:none!important}
 
