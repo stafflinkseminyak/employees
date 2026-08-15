@@ -1613,6 +1613,15 @@ class AdminController extends Controller
                 }
             }
         }
+        // Explicit status change (e.g. from the "Change employee status" modal on the
+        // profile page). Takes precedence over the probation auto-status logic above,
+        // since it reflects a direct admin action rather than a side effect.
+        if ($request->has('status')) {
+            $request->validate([
+                'status' => 'in:active,probation,on-leave,joining-soon,terminated',
+            ]);
+            $employee->status = $request->status;
+        }
         if ($request->has('notice_period')) {
             $employee->notice_period = $request->notice_period ?: null;
         }

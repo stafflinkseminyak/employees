@@ -924,7 +924,7 @@
                                     ];
                                     $statusLabel = $statusLabels[$displayStatus] ?? ucfirst($displayStatus);
                                 @endphp
-                                <span class="bhr-working-status-link status-{{ $displayStatus }}">{{ $statusLabel }}</span>
+                                <span class="bhr-working-status-link status-{{ $displayStatus }}" id="employeeStatusLink" onclick="openStatusModal()" title="Click to change status">{{ $statusLabel }}</span>
                             </div>
                         </div>
                         {{-- Profile completion progress ring --}}
@@ -3250,6 +3250,35 @@
     </div>
 </div>
 
+{{-- 8. Change employee status modal --}}
+<div class="emc-overlay" id="statusModalOverlay">
+    <div class="emc-box" style="max-width:480px;">
+        <div class="emc-header">
+            <h3>Change employee status</h3>
+            <button type="button" class="emc-close" onclick="closeStatusModal()">&times;</button>
+        </div>
+        <div class="emc-body">
+            <div class="emc-field">
+                <label>Status</label>
+                <select id="statusModalSelect" class="emc-select" style="width:100%;" onchange="onStatusModalChange()">
+                    <option value="active">Active</option>
+                    <option value="probation">Probation</option>
+                    <option value="on-leave">On Leave</option>
+                    <option value="joining-soon">Joining Soon</option>
+                    <option value="terminated">Terminated</option>
+                </select>
+            </div>
+            <p id="statusModalWarning" style="display:none;margin:0;font-size:0.85rem;color:#b91c1c;background:#fee2e2;border-radius:6px;padding:10px 12px;">
+                Marking this employee as <strong>Terminated</strong> shows them as no longer active across the system (e.g. hidden from active rosters). Their profile and records are kept — this does not delete any data and can be reversed here at any time.
+            </p>
+        </div>
+        <div class="emc-footer">
+            <button type="button" class="emc-btn-outline" onclick="closeStatusModal()">Cancel</button>
+            <button type="button" class="emc-btn-primary" id="statusModalSaveBtn" onclick="submitStatusModal()">Save</button>
+        </div>
+    </div>
+</div>
+
 
 <script>
 // Tab switching
@@ -4399,6 +4428,49 @@ function empApiSave(payload, btnEl, successMsg, onSuccess) {
     .catch(function(e) {
         showToast('Network error. Please try again.', 'error');
         if (btnEl) { btnEl.disabled = false; btnEl.style.background = ''; btnEl.textContent = original; }
+    });
+}
+
+/* ---------- Change status modal ---------- */
+var STATUS_LABELS = {
+    'active': 'Active',
+    'probation': 'Probation',
+    'on-leave': 'On Leave',
+    'joining-soon': 'Joining Soon',
+    'terminated': 'Terminated'
+};
+
+function openStatusModal() {
+    var current = '{{ $employee->status ?? "active" }}';
+    var select = document.getElementById('statusModalSelect');
+    if (select) select.value = current;
+    onStatusModalChange();
+    document.getElementById('statusModalOverlay').classList.add('open');
+}
+
+function closeStatusModal() {
+    document.getElementById('statusModalOverlay').classList.remove('open');
+}
+
+function onStatusModalChange() {
+    var select = document.getElementById('statusModalSelect');
+    var warning = document.getElementById('statusModalWarning');
+    if (warning) warning.style.display = (select && select.value === 'terminated') ? 'block' : 'none';
+}
+
+function submitStatusModal() {
+    var select = document.getElementById('statusModalSelect');
+    var newStatus = select ? select.value : '';
+    if (!newStatus) return;
+
+    var btn = document.getElementById('statusModalSaveBtn');
+    empApiSave({ status: newStatus }, btn, 'Status updated', function() {
+        var link = document.getElementById('employeeStatusLink');
+        if (link) {
+            link.textContent = STATUS_LABELS[newStatus] || newStatus;
+            link.className = 'bhr-working-status-link status-' + newStatus;
+        }
+        closeStatusModal();
     });
 }
 
