@@ -245,6 +245,103 @@ class AdminController extends Controller
         $userId   = $employee?->id;
         $now      = now();
 
+        // ==================== YTD DASHBOARD (super_admin only) ====================
+        // A separate, mostly-static company-wide operational scorecard — originally
+        // built into the KPI builder page, now moved here per Ayu's boss (who built
+        // it and wants it kept, just relocated). It has nothing to do with the
+        // per-employee weighted "Goals & KPI" section below (that's $kpiGoalGroups,
+        // computed further down) — it's whatever cards are stored on the KpiTemplate
+        // resolved for the viewed employee. Resolved once, up here, so it's available
+        // to every return path below regardless of division. Visibility is gated in
+        // the view; still computed for every viewer so nothing is wasted or leaked
+        // conditionally on data resolution (the gate is purely presentational).
+        // Deliberately NOT resolved via KpiTemplate::forEmployee($employee) — that
+        // would tie it to whichever employee's Performance page happens to be open,
+        // so it would appear/disappear/change depending on who a super_admin is
+        // currently viewing. This is meant as ONE shared, company-wide dashboard
+        // (per Ayu and her boss), so it's resolved independently of $employee:
+        // whichever KpiTemplate row anywhere still carries a stored ytd_dashboard
+        // block is "the" dashboard, full stop.
+        $isSuperAdmin = auth()->user()?->role === 'super_admin';
+        $ytdKpiTemplate = \App\Models\KpiTemplate::all()->first(fn ($t) => !empty($t->kpi_data['ytd_dashboard'] ?? null));
+        $ytdDashboardCards = $ytdKpiTemplate ? ($ytdKpiTemplate->kpi_data['ytd_dashboard'] ?? []) : [];
+
+        if (!empty($ytdDashboardCards)) {
+            // Live company-wide headcount figures for the two cards that have always
+            // been computed rather than typed in — same source/logic as the KPI
+            // builder page previously used (AdminKpiJobController::getKpiTemplate).
+            $thisYear = $now->year;
+
+            $ftActive = DB::table('contracts')
+                ->join('users', 'contracts.employee_user_id', '=', 'users.id')
+                ->where('contracts.status', 'approved')
+                ->where('contracts.employment_basis', 'LIKE', '%full%')
+                ->distinct('contracts.employee_user_id')->count('contracts.employee_user_id');
+            $ptActive = DB::table('contracts')
+                ->join('users', 'contracts.employee_user_id', '=', 'users.id')
+                ->where('contracts.status', 'approved')
+                ->where('contracts.employment_basis', 'LIKE', '%part%')
+                ->distinct('contracts.employee_user_id')->count('contracts.employee_user_id');
+
+            $ftThisYear = DB::table('contracts')->where('status', 'approved')
+                ->whereYear('created_at', $thisYear)->where('employment_basis', 'LIKE', '%full%')->count();
+            $ptThisYear = DB::table('contracts')->where('status', 'approved')
+                ->whereYear('created_at', $thisYear)->where('employment_basis', 'LIKE', '%part%')->count();
+
+            $ftLastYear = DB::table('contracts')->where('status', 'approved')
+                ->whereYear('created_at', $thisYear - 1)->where('employment_basis', 'LIKE', '%full%')->count();
+            $ptLastYear = DB::table('contracts')->where('status', 'approved')
+                ->whereYear('created_at', $thisYear - 1)->where('employment_basis', 'LIKE', '%part%')->count();
+
+            $ftVacancies = DB::table('careers')->where('status', 'published')
+                ->where(function ($q) {
+                    $q->where('type', 'LIKE', '%full%')->orWhere('type', '')->orWhereNull('type');
+                })->count();
+            $ptVacancies = DB::table('careers')->where('status', 'published')
+                ->where('type', 'LIKE', '%part%')->count();
+
+            $ftTotal = $ftActive + $ftVacancies;
+            $ptTotal = $ptActive + $ptVacancies;
+            $ftPct = $ftTotal > 0 ? round(($ftActive / $ftTotal) * 100) : 0;
+            $ptPct = $ptTotal > 0 ? round(($ptActive / $ptTotal) * 100) : 0;
+
+            foreach ($ytdDashboardCards as &$card) {
+                if (($card['title'] ?? null) === 'Full Time Employees') {
+                    $card['value'] = (string) $ftActive;
+                    $card['target'] = (string) $ftThisYear;
+                    $card['last_year'] = (string) $ftLastYear;
+                    $card['percent'] = $ftPct;
+                    $card['color'] = $ftActive > 0 ? 'teal' : 'gray';
+                }
+                if (($card['title'] ?? null) === 'Part Time Employees') {
+                    $card['value'] = (string) $ptActive;
+                    $card['target'] = (string) $ptThisYear;
+                    $card['last_year'] = (string) $ptLastYear;
+                    $card['percent'] = $ptPct;
+                    $card['color'] = $ptActive > 0 ? 'teal' : 'gray';
+                }
+                // Company-wide (not the currently-viewed employee's own number) —
+                // total paid revenue this year across every client, divided by every
+                // active employee. Computed here, alongside the dashboard's other two
+                // live cards, so it updates the same way regardless of whose
+                // Performance page is currently open.
+                if (($card['title'] ?? null) === 'Revenue Per Employee') {
+                    $companyRevenueYTD = (float) \App\Models\ClientInvoice::where('status', 'paid')
+                        ->whereYear(DB::raw('COALESCE(payment_date, updated_at)'), $thisYear)
+                        ->sum('total_invoice');
+                    $activeEmployeeCount = \App\Models\Employee::where(function ($q) {
+                        $q->whereNull('status')->orWhere('status', '!=', 'terminated');
+                    })->count();
+                    $revenuePerEmployee = $activeEmployeeCount > 0 ? $companyRevenueYTD / $activeEmployeeCount : 0;
+                    $card['value'] = 'IDR ' . number_format($revenuePerEmployee, 0, ',', '.');
+                    $targetNum = (float) preg_replace('/[^\d.\-]/', '', (string) ($card['target'] ?? '0'));
+                    $card['percent'] = $targetNum > 0 ? min(100, (int) round(($revenuePerEmployee / $targetNum) * 100)) : ($card['percent'] ?? 0);
+                    $card['color'] = $card['percent'] >= 100 ? 'teal' : ($card['percent'] >= 50 ? 'gold' : 'red');
+                }
+            }
+            unset($card);
+        }
+
         // ==================== DIVISION GATE ====================
         // Add new division names here as their dashboards are built.
         $divisionName       = $employee?->division?->name;
@@ -257,6 +354,8 @@ class AdminController extends Controller
                 'divisionName'       => $divisionName,
                 'viewingOther'       => $viewingOther,
                 'employee'           => $employee,
+                'isSuperAdmin'       => $isSuperAdmin,
+                'ytdDashboardCards'  => $ytdDashboardCards,
             ]);
         }
 
@@ -358,6 +457,10 @@ class AdminController extends Controller
                 ->whereDate($dbPaidDateTime, '<=', $selectedMonth->copy()->endOfMonth())
                 ->sum('total_invoice');
 
+            // (The YTD Dashboard's "Revenue Per Employee" card is now computed as a
+            // company-wide figure up in the YTD Dashboard block above, independent of
+            // which employee's Performance page this is — see the comment there.)
+
             $lastMonthRevenue = (float) $hrInvoiceBase()
                 ->whereMonth($dbPaidDate, $selectedMonth->copy()->subMonth()->month)
                 ->whereYear($dbPaidDate, $selectedMonth->copy()->subMonth()->year)
@@ -403,7 +506,8 @@ class AdminController extends Controller
                 'openVacancies', 'overdueVacancyCount',
                 'revenueThisMonth', 'revenueYTD', 'revenueChangePercent',
                 'monthlyRevenueTrend', 'maxMonthlyRevenue',
-                'newClientsThisMonth', 'kpiGoalGroups'
+                'newClientsThisMonth', 'kpiGoalGroups',
+                'isSuperAdmin', 'ytdDashboardCards'
             ));
         }
 
@@ -510,7 +614,8 @@ class AdminController extends Controller
             'finRevenueThisMonth', 'finRevenueYTD', 'finRevenueChangePercent',
             'finMonthlyRevenueTrend', 'finMaxMonthlyRevenue',
             'finOutstandingInvoices', 'finOverdueInvoiceCount', 'finTotalOutstandingAmount',
-            'finNewInvoicesThisMonth'
+            'finNewInvoicesThisMonth',
+            'isSuperAdmin', 'ytdDashboardCards'
         ));
     }
 

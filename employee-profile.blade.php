@@ -2338,7 +2338,16 @@
                      day-to-day work (who was recruited, which clients, revenue, vacancies…)
                      lives only on the Performance page linked above; this is just the KPI
                      targets themselves and their progress. --}}
-                <h4 style="font-size:0.85rem;font-weight:700;color:#1b4332;margin:20px 0 10px;">📋 KPI Breakdown</h4>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 10px;flex-wrap:wrap;gap:8px;">
+                    <h4 style="font-size:0.85rem;font-weight:700;color:#1b4332;margin:0;">📋 KPI Breakdown</h4>
+                    @if($kpiHasTemplate)
+                        <a href="{{ route('admin.kpi-jd.kpi-document', $employee->id) }}"
+                           style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:0.76rem;font-weight:600;color:#1f5f46;background:#eaf3ee;border:1px solid #cfe3d8;border-radius:8px;text-decoration:none;white-space:nowrap;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+                            Download KPI Acknowledgement (Word)
+                        </a>
+                    @endif
+                </div>
                 @include('admin.kpi.goals-cards', ['groups' => $kpiGoalGroups ?? []])
             </div>
         </div>{{-- /tab-kpi --}}
