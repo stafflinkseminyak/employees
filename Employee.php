@@ -11,7 +11,7 @@ class Employee extends Model
 
     protected $fillable = [
         'contract_id', 'first_name', 'middle_name', 'last_name', 'title', 'position_title',
-        'division_id', 'sub_division_id', 'employment_basis', 'phone', 'home_phone', 'work_phone', 'work_extension',
+        'division_id', 'sub_division_id', 'position_id', 'employment_basis', 'phone', 'home_phone', 'work_phone', 'work_extension',
         'address', 'address_1', 'address_2', 'address_3', 'city', 'territory', 'postcode', 'country',
         'id_number', 'gender', 'blood_type', 'allergies', 'medical_conditions', 'medical_notes',
         'religion', 'birth_info', 'email', 'personal_email', 'visa_type', 'visa_expiry',
@@ -32,6 +32,7 @@ class Employee extends Model
     public function contract() { return $this->belongsTo(Contract::class); }
     public function division() { return $this->belongsTo(Division::class); }
     public function subDivision() { return $this->belongsTo(SubDivision::class); }
+    public function position() { return $this->belongsTo(Position::class); }
     public function user() { return $this->belongsTo(User::class); }
     public function creator() { return $this->belongsTo(User::class, 'created_by'); }
     public function payrollDetail() { return $this->hasOne(EmployeePayrollDetail::class); }

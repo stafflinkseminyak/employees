@@ -672,7 +672,7 @@ class AdminController extends Controller
      */
     public function showEmployeeProfile($id)
     {
-        $employee = \App\Models\Employee::with(['division', 'subDivision', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders'])->findOrFail($id);
+        $employee = \App\Models\Employee::with(['division', 'subDivision', 'position', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders'])->findOrFail($id);
         $absences = \App\Models\EmployeeAbsence::where('employee_id', $employee->id)
             ->orderBy('start_date', 'desc')
             ->get();
@@ -782,11 +782,13 @@ class AdminController extends Controller
 
         $allDivisions = \App\Models\Division::where('is_active', true)->orderBy('name')->get(['id', 'name']);
         $allSubDivisions = \App\Models\SubDivision::where('is_active', true)->orderBy('name')->get(['id', 'name', 'division_id']);
+        $allPositions = \App\Models\Position::where('is_active', true)->orderBy('name')->get(['id', 'name', 'division_id', 'sub_division_id']);
 
         return view('admin.linkers-hub.employee-profile', [
             'employee'           => $employee,
             'allDivisions'       => $allDivisions,
             'allSubDivisions'    => $allSubDivisions,
+            'allPositions'       => $allPositions,
             'absences'           => $absences,
             'profileProgress'    => $profileProgress,
             'requiredFolders'    => $requiredChecklist,
@@ -1645,6 +1647,24 @@ class AdminController extends Controller
                 $subDivisionId = null;
             }
             $employee->sub_division_id = $subDivisionId;
+        }
+        if ($request->has('position_id')) {
+            $positionId = $request->position_id ?: null;
+            if ($positionId && $employee->division_id) {
+                $position = \App\Models\Position::where('id', $positionId)
+                    ->where('division_id', $employee->division_id)
+                    ->first();
+                // A position tied to a specific sub-division must also match
+                // the employee's chosen sub-division; a division-level
+                // position (sub_division_id null) is valid regardless.
+                if ($position && $position->sub_division_id && $position->sub_division_id != $employee->sub_division_id) {
+                    $position = null;
+                }
+                $positionId = $position ? $position->id : null;
+            } elseif (!$employee->division_id) {
+                $positionId = null;
+            }
+            $employee->position_id = $positionId;
         }
         if ($request->has('notice_period')) {
             $employee->notice_period = $request->notice_period ?: null;

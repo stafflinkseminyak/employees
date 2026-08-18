@@ -1434,6 +1434,7 @@
                             <div class="emp-row"><span class="emp-k">Contract type</span><span class="emp-v {{ ($employee->employment_basis ?: $edf('employee_type')) ? '' : 'muted' }}">{{ $employee->employment_basis ?: ($edf('employee_type') ?: 'Not set') }}</span></div>
                             <div class="emp-row"><span class="emp-k">Division</span><span class="emp-v {{ $employee->division ? '' : 'muted' }}">{{ $employee->division?->name ?? 'No division' }}</span></div>
                             <div class="emp-row"><span class="emp-k">Sub-division</span><span class="emp-v {{ $employee->subDivision ? '' : 'muted' }}">{{ $employee->subDivision?->name ?? 'Not set' }}</span></div>
+                            <div class="emp-row"><span class="emp-k">Position</span><span class="emp-v {{ $employee->position ? '' : 'muted' }}">{{ $employee->position?->name ?? 'Not set' }}</span></div>
                             <div class="emp-row"><span class="emp-k">Reports to</span><span class="emp-v">Vida Gholami - Director</span></div>
                             @php $probReq = $employee->probation_required; @endphp
                             <div class="emp-row"><span class="emp-k">Probation required</span><span class="emp-v {{ $probReq ? '' : 'muted' }}">{{ $probReq ? 'Yes' : 'No' }}</span></div>
@@ -3729,6 +3730,7 @@ var PERSONAL_COUNTRY_LIST = @json($countryList);
         'notice_period'            => $employee->notice_period,
         'division_id'              => $employee->division_id,
         'sub_division_id'          => $employee->sub_division_id,
+        'position_id'              => $employee->position_id,
     );
     $__payData = array(
         'salary'        => $pgf('salary'),
@@ -3742,6 +3744,7 @@ var ROLE_DATA = @json($__roleData);
 var PAY_DATA  = @json($__payData);
 var ALL_DIVISIONS = @json($allDivisions);
 var ALL_SUBDIVISIONS = @json($allSubDivisions);
+var ALL_POSITIONS = @json($allPositions);
 
 /* ---------- 1. Hours of work summary modal ---------- */
 /* All data comes from the employee record — nothing is hardcoded. */
@@ -4155,12 +4158,45 @@ function roleSubDivisionOpts(divisionId, selectedSubDivisionId) {
     }).join('');
 }
 
+/* Position options, filtered to the given division + sub-division. A position
+   tied to a specific sub-division (sub_division_id set) only shows once that
+   exact sub-division is chosen; a division-level position (sub_division_id
+   null) shows for any/no sub-division under that division. */
+function rolePositionOpts(divisionId, subDivisionId, selectedPositionId) {
+    if (!divisionId) {
+        return '<option value="">Select a division first</option>';
+    }
+    var options = ALL_POSITIONS.filter(function(p) {
+        if (p.division_id != divisionId) return false;
+        if (!p.sub_division_id) return true;
+        return subDivisionId != null && p.sub_division_id == subDivisionId;
+    });
+    if (!options.length) {
+        return '<option value="">No positions set up yet</option>';
+    }
+    return '<option value="">No position</option>' + options.map(function(p) {
+        return '<option value="' + p.id + '"' + (p.id == selectedPositionId ? ' selected' : '') + '>' + p.name + '</option>';
+    }).join('');
+}
+
 function onRoleDivisionChange() {
     var divSelect = document.getElementById('role_division_id');
     var subSelect = document.getElementById('role_sub_division_id');
-    if (!divSelect || !subSelect) return;
+    var posSelect = document.getElementById('role_position_id');
+    if (!divSelect || !subSelect || !posSelect) return;
     var divisionId = divSelect.value ? parseInt(divSelect.value, 10) : null;
     subSelect.innerHTML = roleSubDivisionOpts(divisionId, null);
+    posSelect.innerHTML = rolePositionOpts(divisionId, null, null);
+}
+
+function onRoleSubDivisionChange() {
+    var divSelect = document.getElementById('role_division_id');
+    var subSelect = document.getElementById('role_sub_division_id');
+    var posSelect = document.getElementById('role_position_id');
+    if (!divSelect || !subSelect || !posSelect) return;
+    var divisionId = divSelect.value ? parseInt(divSelect.value, 10) : null;
+    var subDivisionId = subSelect.value ? parseInt(subSelect.value, 10) : null;
+    posSelect.innerHTML = rolePositionOpts(divisionId, subDivisionId, null);
 }
 
 function openSimpleEditModal(target) {
@@ -4195,7 +4231,10 @@ function openSimpleEditModal(target) {
                     '</select>' +
                 '</div>' +
                 '<div class="emc-field"><label>Sub-division</label>' +
-                    '<select id="role_sub_division_id" class="emc-select" style="width:100%;">' + roleSubDivisionOpts(r.division_id, r.sub_division_id) + '</select>' +
+                    '<select id="role_sub_division_id" class="emc-select" style="width:100%;" onchange="onRoleSubDivisionChange()">' + roleSubDivisionOpts(r.division_id, r.sub_division_id) + '</select>' +
+                '</div>' +
+                '<div class="emc-field"><label>Position</label>' +
+                    '<select id="role_position_id" class="emc-select" style="width:100%;">' + rolePositionOpts(r.division_id, r.sub_division_id, r.position_id) + '</select>' +
                 '</div>' +
                 '<div class="emc-field"><label>Probation required</label>' +
                     '<div class="emc-pill-group">' +
@@ -4693,6 +4732,7 @@ function submitRoleModal() {
         employment_basis:        document.getElementById('role_employment_basis').value,
         division_id:             document.getElementById('role_division_id').value,
         sub_division_id:         document.getElementById('role_sub_division_id').value,
+        position_id:             document.getElementById('role_position_id').value,
         probation_required:      probRequired,
         probation_end_date:      probRequired ? document.getElementById('role_probation_end_date').value : '',
         notice_during_probation: probRequired ? document.getElementById('role_notice_during_probation').value : '',
