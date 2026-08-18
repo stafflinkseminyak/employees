@@ -4141,7 +4141,7 @@ function countryOptions(selected) {
    division (division and sub-division are hierarchical: a sub-division always
    belongs to exactly one division, see SubDivision::division()). */
 function roleSubDivisionOpts(divisionId, selectedSubDivisionId) {
-    // Loose equality: division_id may come back from @json as either a number
+    // Loose equality: division_id may be serialized as either a number
     // or a numeric string depending on the DB driver's fetch mode.
     var options = ALL_SUBDIVISIONS.filter(function(sd) { return divisionId != null && sd.division_id == divisionId; });
     if (!divisionId) {
