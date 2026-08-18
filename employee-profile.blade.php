@@ -1811,6 +1811,44 @@
                 </div>
             </div>
 
+            {{-- System access --}}
+            @php
+                $hasAccount = !empty($employee->user_id);
+                $activationToken = $employee->extra_details['activation_token'] ?? null;
+                $activationExpiresAt = $employee->extra_details['activation_expires_at'] ?? null;
+                $inviteExpired = $activationExpiresAt ? \Carbon\Carbon::parse($activationExpiresAt)->isPast() : true;
+                $hasPendingInvite = !$hasAccount && $activationToken && !$inviteExpired;
+            @endphp
+            <div class="emp-card">
+                <div class="emp-card-head" onclick="empToggle(this)">
+                    <div><div class="emp-card-title">System access</div></div>
+                    <svg class="emp-chev" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+                </div>
+                <div class="emp-card-body">
+                    <div class="emp-pairs">
+                        <div>
+                            <div class="emp-pair-label">Account status</div>
+                            <div class="emp-pair-val">
+                                @if($hasAccount)
+                                    <span style="color:#15803d;font-weight:600;">Active — has system login</span>
+                                @elseif($hasPendingInvite)
+                                    <span style="color:#92400e;font-weight:600;">Invitation sent — awaiting activation</span>
+                                @else
+                                    <span class="muted">Not registered</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    @if(!$hasAccount)
+                        @if(!$employee->email)
+                            <p style="margin:12px 0 0;font-size:0.85rem;color:#94a3b8;">Add an account email above before inviting this employee to the system.</p>
+                        @else
+                            <button type="button" class="emc-btn-primary" id="inviteSystemBtn" style="margin-top:12px;" onclick="inviteEmployeeToSystem()">{{ $hasPendingInvite ? 'Resend invite' : 'Invite to system' }}</button>
+                        @endif
+                    @endif
+                </div>
+            </div>
+
             {{-- Personal information --}}
             <div class="emp-card">
                 <div class="emp-card-head" onclick="empToggle(this)">
@@ -3648,6 +3686,7 @@ function calToggleWeekends(cb) { calShowWeekends = cb.checked; renderMonth(); re
 var EMPLOYEE_FIRST_NAME = @json($employee->first_name);
 var EMPLOYEE_ID = @json($employee->id);
 var EMPLOYEE_UPDATE_URL = "{{ route('admin.linkers-hub.update-employee', ['id' => $employee->id]) }}";
+var SEND_REG_EMAIL_URL = "{{ route('admin.linkers-hub.send-registration-email') }}";
 
 /* Existing data for Contact information & Personal information edit modals */
 @php
@@ -4471,6 +4510,38 @@ function submitStatusModal() {
             link.className = 'bhr-working-status-link status-' + newStatus;
         }
         closeStatusModal();
+    });
+}
+
+/* ---------- Invite existing employee to system ---------- */
+function inviteEmployeeToSystem() {
+    var btn = document.getElementById('inviteSystemBtn');
+    var original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+    fetch(SEND_REG_EMAIL_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': CSRF_TOKEN,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ employee_ids: [EMPLOYEE_ID] })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('✓ Invitation sent', 'success');
+            if (btn) { btn.disabled = false; btn.textContent = 'Resend invite'; }
+        } else {
+            showToast('Failed to send invite: ' + (data.message || 'Unknown error'), 'error');
+            if (btn) { btn.disabled = false; btn.textContent = original; }
+        }
+    })
+    .catch(function(e) {
+        showToast('Network error. Please try again.', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = original; }
     });
 }
 
