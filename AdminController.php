@@ -672,7 +672,7 @@ class AdminController extends Controller
      */
     public function showEmployeeProfile($id)
     {
-        $employee = \App\Models\Employee::with(['division', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders'])->findOrFail($id);
+        $employee = \App\Models\Employee::with(['division', 'subDivision', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders'])->findOrFail($id);
         $absences = \App\Models\EmployeeAbsence::where('employee_id', $employee->id)
             ->orderBy('start_date', 'desc')
             ->get();
@@ -780,8 +780,13 @@ class AdminController extends Controller
         // Performance page instead (see AdminController::performance()).
         $kpiSummary = $kpiTemplate ? $kpiTemplate->overallSummary() : null;
 
+        $allDivisions = \App\Models\Division::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        $allSubDivisions = \App\Models\SubDivision::where('is_active', true)->orderBy('name')->get(['id', 'name', 'division_id']);
+
         return view('admin.linkers-hub.employee-profile', [
             'employee'           => $employee,
+            'allDivisions'       => $allDivisions,
+            'allSubDivisions'    => $allSubDivisions,
             'absences'           => $absences,
             'profileProgress'    => $profileProgress,
             'requiredFolders'    => $requiredChecklist,
@@ -1621,6 +1626,25 @@ class AdminController extends Controller
                 'status' => 'in:active,probation,on-leave,joining-soon,terminated',
             ]);
             $employee->status = $request->status;
+        }
+        // Division / sub-division (e.g. from the Role information modal on the
+        // profile page). A sub-division must belong to the chosen division —
+        // if it doesn't (or the division was cleared), drop it rather than
+        // leaving a mismatched/orphaned reference.
+        if ($request->has('division_id')) {
+            $employee->division_id = $request->division_id ?: null;
+        }
+        if ($request->has('sub_division_id')) {
+            $subDivisionId = $request->sub_division_id ?: null;
+            if ($subDivisionId && $employee->division_id) {
+                $valid = \App\Models\SubDivision::where('id', $subDivisionId)
+                    ->where('division_id', $employee->division_id)
+                    ->exists();
+                $subDivisionId = $valid ? $subDivisionId : null;
+            } elseif (!$employee->division_id) {
+                $subDivisionId = null;
+            }
+            $employee->sub_division_id = $subDivisionId;
         }
         if ($request->has('notice_period')) {
             $employee->notice_period = $request->notice_period ?: null;

@@ -887,7 +887,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
                     </svg>
-                    {{ $employee->division?->name ?? 'No team' }}
+                    {{ $employee->division?->name ?? 'No team' }}{{ $employee->subDivision ? ' · ' . $employee->subDivision->name : '' }}
                 </p>
 
                 <div class="bhr-contact-row">
@@ -1432,7 +1432,8 @@
                             </div>
                             <div class="emp-row"><span class="emp-k">Job title</span><span class="emp-v {{ $employee->position_title ? '' : 'muted' }}">{{ $employee->position_title ?: 'Not set' }}</span></div>
                             <div class="emp-row"><span class="emp-k">Contract type</span><span class="emp-v {{ ($employee->employment_basis ?: $edf('employee_type')) ? '' : 'muted' }}">{{ $employee->employment_basis ?: ($edf('employee_type') ?: 'Not set') }}</span></div>
-                            <div class="emp-row"><span class="emp-k">Team(s)</span><span class="emp-v">{{ $employee->division?->name ?? 'No team' }}</span></div>
+                            <div class="emp-row"><span class="emp-k">Division</span><span class="emp-v {{ $employee->division ? '' : 'muted' }}">{{ $employee->division?->name ?? 'No division' }}</span></div>
+                            <div class="emp-row"><span class="emp-k">Sub-division</span><span class="emp-v {{ $employee->subDivision ? '' : 'muted' }}">{{ $employee->subDivision?->name ?? 'Not set' }}</span></div>
                             <div class="emp-row"><span class="emp-k">Reports to</span><span class="emp-v">Vida Gholami - Director</span></div>
                             @php $probReq = $employee->probation_required; @endphp
                             <div class="emp-row"><span class="emp-k">Probation required</span><span class="emp-v {{ $probReq ? '' : 'muted' }}">{{ $probReq ? 'Yes' : 'No' }}</span></div>
@@ -3726,6 +3727,8 @@ var PERSONAL_COUNTRY_LIST = @json($countryList);
         'probation_end_date'       => $employee->probation_end_date ? $employee->probation_end_date->format('Y-m-d') : '',
         'notice_during_probation'  => $employee->notice_during_probation,
         'notice_period'            => $employee->notice_period,
+        'division_id'              => $employee->division_id,
+        'sub_division_id'          => $employee->sub_division_id,
     );
     $__payData = array(
         'salary'        => $pgf('salary'),
@@ -3737,6 +3740,8 @@ var PERSONAL_COUNTRY_LIST = @json($countryList);
 @endphp
 var ROLE_DATA = @json($__roleData);
 var PAY_DATA  = @json($__payData);
+var ALL_DIVISIONS = @json($allDivisions);
+var ALL_SUBDIVISIONS = @json($allSubDivisions);
 
 /* ---------- 1. Hours of work summary modal ---------- */
 /* All data comes from the employee record — nothing is hardcoded. */
@@ -4132,6 +4137,32 @@ function countryOptions(selected) {
     return html;
 }
 
+/* Sub-division options for the Role information modal, filtered to the given
+   division (division and sub-division are hierarchical: a sub-division always
+   belongs to exactly one division, see SubDivision::division()). */
+function roleSubDivisionOpts(divisionId, selectedSubDivisionId) {
+    // Loose equality: division_id may come back from @json as either a number
+    // or a numeric string depending on the DB driver's fetch mode.
+    var options = ALL_SUBDIVISIONS.filter(function(sd) { return divisionId != null && sd.division_id == divisionId; });
+    if (!divisionId) {
+        return '<option value="">Select a division first</option>';
+    }
+    if (!options.length) {
+        return '<option value="">No sub-divisions for this division</option>';
+    }
+    return '<option value="">No sub-division</option>' + options.map(function(sd) {
+        return '<option value="' + sd.id + '"' + (sd.id == selectedSubDivisionId ? ' selected' : '') + '>' + sd.name + '</option>';
+    }).join('');
+}
+
+function onRoleDivisionChange() {
+    var divSelect = document.getElementById('role_division_id');
+    var subSelect = document.getElementById('role_sub_division_id');
+    if (!divSelect || !subSelect) return;
+    var divisionId = divSelect.value ? parseInt(divSelect.value, 10) : null;
+    subSelect.innerHTML = roleSubDivisionOpts(divisionId, null);
+}
+
 function openSimpleEditModal(target) {
     var box = document.getElementById('simpleEditBox');
     var name = EMPLOYEE_FIRST_NAME;
@@ -4154,6 +4185,17 @@ function openSimpleEditModal(target) {
                 '<div class="emc-field"><label>Job title</label><input type="text" id="role_position_title" class="emc-input" style="width:100%;" value="' + (r.position_title || '') + '"></div>' +
                 '<div class="emc-field"><label>Contract type</label>' +
                     '<select id="role_employment_basis" class="emc-select" style="width:100%;">' + contractOpts + '</select>' +
+                '</div>' +
+                '<div class="emc-field"><label>Division</label>' +
+                    '<select id="role_division_id" class="emc-select" style="width:100%;" onchange="onRoleDivisionChange()">' +
+                        '<option value="">No division</option>' +
+                        ALL_DIVISIONS.map(function(d) {
+                            return '<option value="' + d.id + '"' + (d.id == r.division_id ? ' selected' : '') + '>' + d.name + '</option>';
+                        }).join('') +
+                    '</select>' +
+                '</div>' +
+                '<div class="emc-field"><label>Sub-division</label>' +
+                    '<select id="role_sub_division_id" class="emc-select" style="width:100%;">' + roleSubDivisionOpts(r.division_id, r.sub_division_id) + '</select>' +
                 '</div>' +
                 '<div class="emc-field"><label>Probation required</label>' +
                     '<div class="emc-pill-group">' +
@@ -4649,6 +4691,8 @@ function submitRoleModal() {
     var payload = {
         position_title:          document.getElementById('role_position_title').value,
         employment_basis:        document.getElementById('role_employment_basis').value,
+        division_id:             document.getElementById('role_division_id').value,
+        sub_division_id:         document.getElementById('role_sub_division_id').value,
         probation_required:      probRequired,
         probation_end_date:      probRequired ? document.getElementById('role_probation_end_date').value : '',
         notice_during_probation: probRequired ? document.getElementById('role_notice_during_probation').value : '',
