@@ -265,7 +265,7 @@ select {
 }
 
 /* ---- Utility ---- */
-.cards-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-bottom:24px}
+.cards-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-bottom:24px;padding-right:20px}
 .division-heading{font-size:14px;font-weight:600;color:#64748b;margin:18px 0 10px;text-transform:uppercase;letter-spacing:.5px}
 .hidden{display:none!important}
 
