@@ -1409,7 +1409,7 @@ class AdminController extends Controller
             return redirect()->back()->with('error', 'No files found to download.');
         }
 
-        $employeeName = trim($employee->first_name . ' ' . $employee->last_name) ?: 'employee';
+        $employeeName = $employee->full_name ?: 'employee';
         $zipFileName = 'documents-' . \Illuminate\Support\Str::slug($employeeName) . '-' . now()->format('Ymd-His') . '.zip';
 
         $tmpDir = storage_path('app/tmp');
@@ -1958,7 +1958,7 @@ class AdminController extends Controller
             $employee = \App\Models\Employee::find($id);
             if ($employee && $employee->email) {
                 try {
-                    $fullName = trim($employee->first_name . ' ' . $employee->last_name);
+                    $fullName = $employee->full_name;
                     $firstName = ucwords(strtolower(trim($employee->first_name)));
                     
                     // Generate activation token and expiry (48 hours)
@@ -2035,10 +2035,10 @@ class AdminController extends Controller
                     $sentNames[] = $fullName;
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error("Failed to send registration email to employee {$id}: " . $e->getMessage());
-                    $failedNames[] = trim($employee->first_name . ' ' . $employee->last_name);
+                    $failedNames[] = $employee->full_name;
                 }
             } else if ($employee) {
-                $failedNames[] = trim($employee->first_name . ' ' . $employee->last_name) . ' (No email address)';
+                $failedNames[] = $employee->full_name . ' (No email address)';
             }
         }
 

@@ -1700,6 +1700,15 @@ function calculateVariableAnnualLeaveRecommended() {
     }
 }
 
+/* Joins first/middle/last name parts with single spaces, skipping any that
+   are empty/missing — used everywhere a full name is displayed client-side
+   so the middle name isn't silently dropped like it used to be. */
+function joinFullName(first, middle, last) {
+    return [first, middle, last].filter(function(part) { return part && String(part).trim(); })
+        .map(function(part) { return String(part).trim(); })
+        .join(' ');
+}
+
 function renderSummary() {
     if (!selectedEmpId) return;
     var emp = ADDED_EMPLOYEES.find(function(e) { return e.id === selectedEmpId; });
@@ -1709,8 +1718,9 @@ function renderSummary() {
     
     // 1. Avatar and header
     var fName = details['empFirstName'] || emp.first_name || '';
+    var mName = details['empMiddleName'] || emp.middle_name || '';
     var lName = details['empLastName'] || emp.last_name || '';
-    var fullName = (fName + ' ' + lName).trim() || 'No Name';
+    var fullName = joinFullName(fName, mName, lName) || 'No Name';
     var jobTitle = details['empJobTitle'] || '-';
     
     document.getElementById('summaryFullName').textContent = fullName;
@@ -3140,7 +3150,7 @@ function loadEmployeeToFormDirect(empId) {
     var emp = ADDED_EMPLOYEES.find(function(e) { return e.id === empId; });
     if (!emp) return;
 
-    var fullName = emp.first_name + ' ' + emp.last_name;
+    var fullName = joinFullName(emp.first_name, emp.middle_name, emp.last_name);
     var elListName = document.getElementById('empListName');
     var elDetailName = document.getElementById('empDetailName');
     if (elListName) elListName.textContent = fullName;
@@ -3235,7 +3245,7 @@ function renderEmployeeList() {
     
     var searchVal = document.getElementById('sbSearchInput').value.toLowerCase().trim();
     var filtered = ADDED_EMPLOYEES.filter(function(e) {
-        var fullName = (e.first_name + ' ' + e.last_name).toLowerCase();
+        var fullName = joinFullName(e.first_name, e.middle_name, e.last_name).toLowerCase();
         return fullName.indexOf(searchVal) !== -1;
     });
     
@@ -3288,7 +3298,7 @@ function renderEmployeeList() {
         
         var nameSpan = document.createElement('span');
         nameSpan.className = 'emp-name';
-        nameSpan.textContent = emp.first_name + ' ' + emp.last_name;
+        nameSpan.textContent = joinFullName(emp.first_name, emp.middle_name, emp.last_name);
         
         var emailSpan = document.createElement('span');
         emailSpan.className = 'emp-email';
@@ -3410,7 +3420,7 @@ function executeConfirmAction() {
 
 function deleteEmployee(empId) {
     var emp = ADDED_EMPLOYEES.find(function(e) { return e.id === empId; });
-    var empName = emp ? (emp.first_name + ' ' + emp.last_name) : 'this employee';
+    var empName = emp ? joinFullName(emp.first_name, emp.middle_name, emp.last_name) : 'this employee';
     showConfirmModal(
         'Delete record',
         'This action cannot be reversed. Are you sure you want to delete "' + empName + '"?',
@@ -4156,8 +4166,9 @@ document.addEventListener('DOMContentLoaded', function() {
         successEmps.forEach(function(emp) {
             var details = emp.details || {};
             var fName = details['empFirstName'] || emp.first_name || '';
+            var mName = details['empMiddleName'] || emp.middle_name || '';
             var lName = details['empLastName'] || emp.last_name || '';
-            var fullName = (fName + ' ' + lName).trim() || 'No Name';
+            var fullName = joinFullName(fName, mName, lName) || 'No Name';
             var email = details['empEmail'] || emp.email || '';
             
             if (query && fullName.toLowerCase().indexOf(query) === -1 && email.toLowerCase().indexOf(query) === -1) {
@@ -4186,8 +4197,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function generateSubmissionStatusRow(emp) {
         var details = emp.details || {};
         var fName = details['empFirstName'] || emp.first_name || '';
+        var mName = details['empMiddleName'] || emp.middle_name || '';
         var lName = details['empLastName'] || emp.last_name || '';
-        var fullName = (fName + ' ' + lName).trim() || 'No Name';
+        var fullName = joinFullName(fName, mName, lName) || 'No Name';
         var email = details['empEmail'] || emp.email || '-';
 
         // SVGs
@@ -4260,8 +4272,9 @@ document.addEventListener('DOMContentLoaded', function() {
     function generateFailedStatusRow(emp, errorMsg) {
         var details = emp.details || {};
         var fName = details['empFirstName'] || emp.first_name || '';
+        var mName = details['empMiddleName'] || emp.middle_name || '';
         var lName = details['empLastName'] || emp.last_name || '';
-        var fullName = (fName + ' ' + lName).trim() || 'No Name';
+        var fullName = joinFullName(fName, mName, lName) || 'No Name';
         var email = details['empEmail'] || emp.email || '-';
 
         var html = '<tr style="border-bottom: 1px solid #e2e8f0; text-align: left;">';

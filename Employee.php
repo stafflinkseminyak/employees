@@ -83,7 +83,9 @@ class Employee extends Model
     public function scopeActive($q) { return $q->where('status', 'active'); }
     public function scopeTerminated($q) { return $q->where('status', 'terminated'); }
 
-    public function getFullNameAttribute(): string { return trim($this->first_name . ' ' . $this->last_name); }
+    public function getFullNameAttribute(): string {
+        return trim(implode(' ', array_filter([$this->first_name, $this->middle_name, $this->last_name], fn ($part) => filled($part))));
+    }
 
     public function getInitialsAttribute(): string {
         return mb_strtoupper(mb_substr(trim($this->first_name), 0, 1)) . mb_strtoupper(mb_substr(trim($this->last_name), 0, 1));
