@@ -38,6 +38,40 @@ class Employee extends Model
     public function payrollDetail() { return $this->hasOne(EmployeePayrollDetail::class); }
     public function employmentDetail() { return $this->hasOne(EmployeeEmploymentDetail::class); }
     public function documents() { return $this->hasMany(EmployeeDocument::class); }
+
+    /**
+     * This employee's current Division/Sub-Division/Position — from their
+     * Contract when they have one (division_id column + sub_division_id/
+     * position_id stored inside contract.form_data, the only place those two
+     * live), falling back to this Employee record's own division_id/
+     * sub_division_id/position_id columns when there's no Contract (e.g. an
+     * intern assigned a Division/Position directly on the Employee page,
+     * without ever going through a Contract).
+     *
+     * Centralizes a fallback chain that used to be duplicated (and drifted
+     * out of sync) across KpiTemplate::forEmployee(),
+     * AdminKpiJobController::saveKpiTemplate(), and the Saved KPI Templates
+     * list — route anything that needs "this person's current position"
+     * through here so they all agree.
+     */
+    public function resolvedPositionIds(): array
+    {
+        $contract = $this->contract;
+        if ($contract) {
+            $formData = is_array($contract->form_data) ? $contract->form_data : [];
+            return [
+                'division_id' => $contract->division_id,
+                'sub_division_id' => $formData['sub_division_id'] ?? null,
+                'position_id' => $formData['position_id'] ?? null,
+            ];
+        }
+
+        return [
+            'division_id' => $this->division_id,
+            'sub_division_id' => $this->sub_division_id,
+            'position_id' => $this->position_id,
+        ];
+    }
     public function passports() { return $this->hasMany(EmployeeDocument::class)->where('type', EmployeeDocument::TYPE_PASSPORT); }
     public function visas() { return $this->hasMany(EmployeeDocument::class)->where('type', EmployeeDocument::TYPE_VISA); }
     public function drivingLicences() { return $this->hasMany(EmployeeDocument::class)->where('type', EmployeeDocument::TYPE_DRIVING_LICENCE); }
