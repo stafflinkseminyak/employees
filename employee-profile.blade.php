@@ -1436,7 +1436,22 @@
                             <div class="emp-row"><span class="emp-k">Division</span><span class="emp-v {{ $employee->division ? '' : 'muted' }}">{{ $employee->division?->name ?? 'No division' }}</span></div>
                             <div class="emp-row"><span class="emp-k">Sub-division</span><span class="emp-v {{ $employee->subDivision ? '' : 'muted' }}">{{ $employee->subDivision?->name ?? 'Not set' }}</span></div>
                             <div class="emp-row"><span class="emp-k">Position</span><span class="emp-v {{ $employee->position ? '' : 'muted' }}">{{ $employee->position?->name ?? 'Not set' }}</span></div>
-                            <div class="emp-row"><span class="emp-k">Reports to</span><span class="emp-v">Vida Gholami - Director</span></div>
+                            <div class="emp-row">
+                                <span class="emp-k">Reports to</span>
+                                @php $reportingChain = $employee->reportingChain(); @endphp
+                                @if(empty($reportingChain))
+                                    <span class="emp-v muted">Not set</span>
+                                @else
+                                    <div class="emp-v" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                                        @foreach($reportingChain as $i => $chainManager)
+                                            <div style="display:flex;align-items:center;gap:8px;">
+                                                <span>{{ $chainManager->full_name }}{{ $chainManager->position_title ? ' · ' . $chainManager->position_title : '' }}</span>
+                                                <span style="width:20px;height:20px;border-radius:50%;background:#2e7d5e;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $i + 1 }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
                             @php $probReq = $employee->probation_required; @endphp
                             <div class="emp-row"><span class="emp-k">Probation required</span><span class="emp-v {{ $probReq ? '' : 'muted' }}">{{ $probReq ? 'Yes' : 'No' }}</span></div>
                             <div class="emp-row"><span class="emp-k">Probation end date</span><span class="emp-v {{ $employee->probation_end_date ? '' : 'muted' }}">{{ $employee->probation_end_date ? $employee->probation_end_date->format('d M Y') : 'Not set' }}</span></div>
@@ -3799,6 +3814,7 @@ var PERSONAL_COUNTRY_LIST = @json($countryList);
         'division_id'              => $employee->division_id,
         'sub_division_id'          => $employee->sub_division_id,
         'position_id'              => $employee->position_id,
+        'manager_id'                => $employee->manager_id,
     );
     $__payData = array(
         'salary'        => $pgf('salary'),
@@ -3813,6 +3829,10 @@ var PAY_DATA  = @json($__payData);
 var ALL_DIVISIONS = @json($allDivisions);
 var ALL_SUBDIVISIONS = @json($allSubDivisions);
 var ALL_POSITIONS = @json($allPositions);
+var ALL_MANAGERS = @json($possibleManagers->map(fn ($m) => [
+    'id' => $m->id,
+    'label' => $m->full_name . ($m->position_title ? ' — ' . $m->position_title : ''),
+]));
 
 /* ---------- 1. Hours of work summary modal ---------- */
 /* All data comes from the employee record — nothing is hardcoded. */
@@ -4303,6 +4323,14 @@ function openSimpleEditModal(target) {
                 '</div>' +
                 '<div class="emc-field"><label>Position</label>' +
                     '<select id="role_position_id" class="emc-select" style="width:100%;">' + rolePositionOpts(r.division_id, r.sub_division_id, r.position_id) + '</select>' +
+                '</div>' +
+                '<div class="emc-field"><label>Reports to</label>' +
+                    '<select id="role_manager_id" class="emc-select" style="width:100%;">' +
+                        '<option value="">No manager set</option>' +
+                        ALL_MANAGERS.map(function(m) {
+                            return '<option value="' + m.id + '"' + (m.id == r.manager_id ? ' selected' : '') + '>' + m.label + '</option>';
+                        }).join('') +
+                    '</select>' +
                 '</div>' +
                 '<div class="emc-field"><label>Probation required</label>' +
                     '<div class="emc-pill-group">' +
@@ -4801,6 +4829,7 @@ function submitRoleModal() {
         division_id:             document.getElementById('role_division_id').value,
         sub_division_id:         document.getElementById('role_sub_division_id').value,
         position_id:             document.getElementById('role_position_id').value,
+        manager_id:               document.getElementById('role_manager_id').value,
         probation_required:      probRequired,
         probation_end_date:      probRequired ? document.getElementById('role_probation_end_date').value : '',
         notice_during_probation: probRequired ? document.getElementById('role_notice_during_probation').value : '',

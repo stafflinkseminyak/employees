@@ -11,7 +11,7 @@ class Employee extends Model
 
     protected $fillable = [
         'contract_id', 'first_name', 'middle_name', 'last_name', 'title', 'position_title',
-        'division_id', 'sub_division_id', 'position_id', 'employment_basis', 'phone', 'home_phone', 'work_phone', 'work_extension',
+        'division_id', 'sub_division_id', 'position_id', 'manager_id', 'employment_basis', 'phone', 'home_phone', 'work_phone', 'work_extension',
         'address', 'address_1', 'address_2', 'address_3', 'city', 'territory', 'postcode', 'country',
         'id_number', 'gender', 'blood_type', 'allergies', 'medical_conditions', 'medical_notes',
         'religion', 'birth_info', 'email', 'personal_email', 'visa_type', 'visa_expiry',
@@ -33,6 +33,36 @@ class Employee extends Model
     public function division() { return $this->belongsTo(Division::class); }
     public function subDivision() { return $this->belongsTo(SubDivision::class); }
     public function position() { return $this->belongsTo(Position::class); }
+    public function manager() { return $this->belongsTo(Employee::class, 'manager_id'); }
+    public function directReports() { return $this->hasMany(Employee::class, 'manager_id'); }
+
+    /**
+     * The full reporting chain above this employee, immediate manager first
+     * — e.g. [Manager, Manager's manager, ...] up to whoever has no manager
+     * set (the top of the org). Used to render "Reports to" as a numbered
+     * list (①②③...) instead of a single hardcoded name.
+     *
+     * $maxDepth guards against a bad manager_id assignment accidentally
+     * creating a cycle (A reports to B who reports back to A) — without it,
+     * that would walk forever instead of just producing a short, wrong chain.
+     */
+    public function reportingChain(int $maxDepth = 10): array
+    {
+        $chain = [];
+        $seenIds = [$this->id];
+        $current = $this->manager;
+
+        while ($current && count($chain) < $maxDepth) {
+            if (in_array($current->id, $seenIds, true)) {
+                break;
+            }
+            $chain[] = $current;
+            $seenIds[] = $current->id;
+            $current = $current->manager;
+        }
+
+        return $chain;
+    }
     public function user() { return $this->belongsTo(User::class); }
     public function creator() { return $this->belongsTo(User::class, 'created_by'); }
     public function payrollDetail() { return $this->hasOne(EmployeePayrollDetail::class); }

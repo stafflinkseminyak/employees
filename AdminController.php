@@ -672,7 +672,7 @@ class AdminController extends Controller
      */
     public function showEmployeeProfile($id)
     {
-        $employee = \App\Models\Employee::with(['division', 'subDivision', 'position', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders', 'equipmentOnLoan'])->findOrFail($id);
+        $employee = \App\Models\Employee::with(['division', 'subDivision', 'position', 'manager', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders', 'equipmentOnLoan'])->findOrFail($id);
         $absences = \App\Models\EmployeeAbsence::where('employee_id', $employee->id)
             ->orderBy('start_date', 'desc')
             ->get();
@@ -783,12 +783,16 @@ class AdminController extends Controller
         $allDivisions = \App\Models\Division::where('is_active', true)->orderBy('name')->get(['id', 'name']);
         $allSubDivisions = \App\Models\SubDivision::where('is_active', true)->orderBy('name')->get(['id', 'name', 'division_id']);
         $allPositions = \App\Models\Position::where('is_active', true)->orderBy('name')->get(['id', 'name', 'division_id', 'sub_division_id']);
+        $possibleManagers = \App\Models\Employee::where('id', '!=', $employee->id)
+            ->orderBy('first_name')->orderBy('last_name')
+            ->get(['id', 'first_name', 'middle_name', 'last_name', 'position_title']);
 
         return view('admin.linkers-hub.employee-profile', [
             'employee'           => $employee,
             'allDivisions'       => $allDivisions,
             'allSubDivisions'    => $allSubDivisions,
             'allPositions'       => $allPositions,
+            'possibleManagers'   => $possibleManagers,
             'absences'           => $absences,
             'profileProgress'    => $profileProgress,
             'requiredFolders'    => $requiredChecklist,
@@ -1665,6 +1669,23 @@ class AdminController extends Controller
                 $positionId = null;
             }
             $employee->position_id = $positionId;
+        }
+        // "Reports to" — a self-referencing manager_id. Reject setting
+        // yourself as your own manager, and reject any assignment that would
+        // create a cycle (the chosen manager's own chain already loops back
+        // to this employee), same guard reportingChain() uses when reading it.
+        if ($request->has('manager_id')) {
+            $managerId = $request->manager_id ?: null;
+            if ($managerId && (int) $managerId === $employee->id) {
+                // Can't be your own manager.
+                $managerId = null;
+            } elseif ($managerId) {
+                $proposedManager = \App\Models\Employee::find($managerId);
+                $wouldCycle = $proposedManager
+                    && in_array($employee->id, array_map(fn ($e) => $e->id, $proposedManager->reportingChain()), true);
+                $managerId = ($proposedManager && !$wouldCycle) ? $proposedManager->id : null;
+            }
+            $employee->manager_id = $managerId;
         }
         if ($request->has('notice_period')) {
             $employee->notice_period = $request->notice_period ?: null;
