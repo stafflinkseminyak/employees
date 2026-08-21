@@ -714,9 +714,36 @@ class AdminController extends Controller
                 'name'     => $label,
                 'has_file' => in_array($type, $uploadedDocTypes, true),
                 'file_id'  => $uploadedFileIdsByType->get($type),
+                'kind'     => 'file',
             ];
         })->values();
         $requiredDocsLocked = collect($requiredDocTypes)->keys()->diff($uploadedDocTypes)->isEmpty();
+
+        // Contract and KPI template aren't uploaded files — they're existence
+        // checks against other parts of the system — so they're appended
+        // here as 'link' items rather than folded into requiredDocTypesFor()/
+        // uploadedRequiredDocTypes() above, which are file-upload-specific.
+        // Missing ones render as a harder red warning (not the softer amber
+        // used for a missing file) since these two are considered non-
+        // negotiable, not just "not gotten to yet".
+        $requiredChecklist->push((object) [
+            'type'         => 'contract',
+            'name'         => 'Contract',
+            'has_file'     => (bool) $employee->contract_id,
+            'file_id'      => null,
+            'kind'         => 'link',
+            'view_url'     => route('admin.contracts.index'),
+            'missing_text' => 'No contract on file',
+        ]);
+        $requiredChecklist->push((object) [
+            'type'         => 'kpi',
+            'name'         => 'KPI Template',
+            'has_file'     => (bool) \App\Models\KpiTemplate::forEmployee($employee),
+            'file_id'      => null,
+            'kind'         => 'link',
+            'view_url'     => route('admin.kpi-jd.kpi-list'),
+            'missing_text' => 'No KPI template set up for this position yet',
+        ]);
 
         // Shifts tab: everything from Roster Plans this employee is tied to,
         // split into assigned (pending/accepted/declined) vs open shifts
