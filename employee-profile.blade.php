@@ -1442,10 +1442,15 @@
                                 @if(empty($reportingChain))
                                     <span class="emp-v muted">Not set</span>
                                 @else
-                                    <div class="emp-v" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+                                    <div class="emp-v" style="display:flex;flex-direction:column;gap:10px;align-items:flex-end;">
                                         @foreach($reportingChain as $i => $chainLink)
                                             <div style="display:flex;align-items:center;gap:8px;">
-                                                <span>{{ $chainLink['name'] }}{{ $chainLink['title'] ? ' · ' . $chainLink['title'] : '' }}</span>
+                                                <div style="text-align:right;">
+                                                    <div style="font-weight:500;">{{ $chainLink['name'] }}</div>
+                                                    @if($chainLink['title'])
+                                                        <div style="font-size:0.78rem;color:#9ca3af;font-weight:400;margin-top:2px;">{{ $chainLink['title'] }}</div>
+                                                    @endif
+                                                </div>
                                                 <span style="width:20px;height:20px;border-radius:50%;background:#2e7d5e;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $i + 1 }}</span>
                                             </div>
                                         @endforeach
