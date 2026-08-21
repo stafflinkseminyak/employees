@@ -2435,9 +2435,14 @@
                             @endif
                             <div style="flex:1;min-width:0;">
                                 <div style="font-size:0.88rem;font-weight:700;color:#1b4332;">{{ $asset->name }}</div>
-                                <div style="font-size:0.78rem;color:#6b7280;">
-                                    {{ $asset->category }}@if($asset->brand) &middot; {{ $asset->brand }}@endif @if($asset->model){{ $asset->model }}@endif@if($asset->serial_number) &middot; SN: {{ $asset->serial_number }}@endif
-                                </div>
+                                @php
+                                    $assetSubtitleParts = array_filter([
+                                        $asset->category,
+                                        trim(($asset->brand ?? '') . ' ' . ($asset->model ?? '')),
+                                        $asset->serial_number ? 'SN: ' . $asset->serial_number : null,
+                                    ]);
+                                @endphp
+                                <div style="font-size:0.78rem;color:#6b7280;">{{ implode(' · ', $assetSubtitleParts) }}</div>
                                 @if($asset->assigned_date)
                                     <div style="font-size:0.76rem;color:#9ca3af;margin-top:2px;">On loan since {{ $asset->assigned_date->format('d M Y') }} ({{ $asset->duration_used }})</div>
                                 @endif
