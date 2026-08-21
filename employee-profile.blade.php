@@ -2003,23 +2003,25 @@
                     @foreach($requiredFolders as $reqFolder)
                         @php
                             $isCriticalMissing = ($reqFolder->critical ?? false) && !$reqFolder->has_file;
-                            $rowBg     = $reqFolder->has_file ? '#f0fdf4' : ($isCriticalMissing ? '#fef2f2' : '#fafafa');
-                            $rowBorder = $reqFolder->has_file ? '#bbf7d0' : ($isCriticalMissing ? '#fecaca' : '#e5e7eb');
-                            $iconColor = $reqFolder->has_file ? '#16a34a' : ($isCriticalMissing ? '#dc2626' : '#d97706');
+                            $rowBg     = $reqFolder->has_file ? '#f0fdf4' : ($isCriticalMissing ? '#fee2e2' : '#fafafa');
+                            $rowBorder = $reqFolder->has_file ? '#bbf7d0' : ($isCriticalMissing ? '#dc2626' : '#e5e7eb');
+                            $borderWidth = $isCriticalMissing ? '2px' : '1px';
                             $nameColor = $isCriticalMissing ? '#7f1d1d' : '#1b4332';
                             $subColor  = $isCriticalMissing ? '#b91c1c' : '#6b7280';
                             $actionColor = $isCriticalMissing ? '#dc2626' : '#2e7d5e';
                         @endphp
-                        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;background:{{ $rowBg }};border:1px solid {{ $rowBorder }};">
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;background:{{ $rowBg }};border:{{ $borderWidth }} solid {{ $rowBorder }};">
                             <div style="display:flex;align-items:center;gap:10px;">
                                 @if($reqFolder->has_file)
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="{{ $iconColor }}" style="width:18px;height:18px;flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="#16a34a" style="width:18px;height:18px;flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                @elseif($isCriticalMissing)
+                                    <span style="width:18px;height:18px;border-radius:50%;background:#dc2626;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">!</span>
                                 @else
-                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="{{ $iconColor }}" style="width:18px;height:18px;flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="#d97706" style="width:18px;height:18px;flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                                 @endif
                                 <div>
                                     <div style="font-size:0.88rem;font-weight:600;color:{{ $nameColor }};">{{ $reqFolder->name }}</div>
-                                    <div style="font-size:0.77rem;color:{{ $subColor }};">{{ $reqFolder->has_file ? 'Document uploaded' : 'Upload required' }}</div>
+                                    <div style="font-size:0.77rem;font-weight:{{ $isCriticalMissing ? '600' : '400' }};color:{{ $subColor }};">{{ $reqFolder->has_file ? 'Document uploaded' : ($isCriticalMissing ? 'Required — not uploaded' : 'Upload required') }}</div>
                                 </div>
                             </div>
                             @if($reqFolder->has_file)
@@ -2029,7 +2031,7 @@
                                 </a>
                             @else
                                 <a href="#" onclick="triggerRequiredUpload('{{ $reqFolder->type }}'); return false;"
-                                   style="font-size:0.8rem;font-weight:600;color:{{ $actionColor }};text-decoration:none;padding:4px 12px;border:1px solid {{ $actionColor }};border-radius:6px;">
+                                   style="font-size:0.8rem;font-weight:600;color:{{ $isCriticalMissing ? '#fff' : $actionColor }};background:{{ $isCriticalMissing ? '#dc2626' : 'transparent' }};text-decoration:none;padding:4px 12px;border:1px solid {{ $actionColor }};border-radius:6px;">
                                     Upload
                                 </a>
                                 <input type="file" id="reqFileInput_{{ $reqFolder->type }}" style="display:none;"
