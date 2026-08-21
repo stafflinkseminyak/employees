@@ -672,7 +672,7 @@ class AdminController extends Controller
      */
     public function showEmployeeProfile($id)
     {
-        $employee = \App\Models\Employee::with(['division', 'subDivision', 'position', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders'])->findOrFail($id);
+        $employee = \App\Models\Employee::with(['division', 'subDivision', 'position', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders', 'equipmentOnLoan'])->findOrFail($id);
         $absences = \App\Models\EmployeeAbsence::where('employee_id', $employee->id)
             ->orderBy('start_date', 'desc')
             ->get();

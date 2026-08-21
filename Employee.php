@@ -39,6 +39,9 @@ class Employee extends Model
     public function employmentDetail() { return $this->hasOne(EmployeeEmploymentDetail::class); }
     public function documents() { return $this->hasMany(EmployeeDocument::class); }
 
+    /** Company assets (laptop, phone, etc.) currently on loan to this employee — managed from the Inventory/Assets page. */
+    public function equipmentOnLoan() { return $this->hasMany(InventoryAsset::class, 'employee_id')->orderByDesc('assigned_date'); }
+
     /**
      * This employee's current Division/Sub-Division/Position — from their
      * Contract when they have one (division_id column + sub_division_id/

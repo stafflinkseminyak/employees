@@ -964,6 +964,7 @@
         <div class="bhr-tab" data-tab="documents">Documents</div>
         <div class="bhr-tab" data-tab="shifts">Shifts</div>
         <div class="bhr-tab" data-tab="kpi">KPI</div>
+        <div class="bhr-tab" data-tab="equipment">Equipment on loan</div>
     </div>
 
     {{-- ======= TAB CONTENT ======= --}}
@@ -2391,6 +2392,68 @@
                 @include('admin.kpi.goals-cards', ['groups' => $kpiGoalGroups ?? []])
             </div>
         </div>{{-- /tab-kpi --}}
+
+        <div class="bhr-tab-pane" id="tab-equipment">
+            @php $equipmentOnLoan = $employee->equipmentOnLoan; @endphp
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:16px;">
+                <div>
+                    <h3 style="font-size:0.95rem;font-weight:700;color:#1b4332;margin:0 0 4px;">Equipment on loan</h3>
+                    <p style="font-size:0.82rem;color:#6b7280;margin:0;">Company assets currently assigned to {{ $employee->first_name }} — their responsibility to look after and return if they leave.</p>
+                </div>
+                @if($equipmentOnLoan->isNotEmpty())
+                <a href="{{ route('admin.finance.inventory-assets.index') }}" target="_blank"
+                   style="font-size:0.8rem;font-weight:600;color:#2e7d5e;text-decoration:none;padding:6px 14px;border:1px solid #2e7d5e;border-radius:6px;white-space:nowrap;flex-shrink:0;">
+                    Manage in Inventory &rarr;
+                </a>
+                @endif
+            </div>
+
+            @if($equipmentOnLoan->isEmpty())
+                <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:32px 20px;text-align:center;color:#6b7280;font-size:0.88rem;">
+                    No equipment currently on loan to {{ $employee->first_name }}.
+                </div>
+            @else
+                @php
+                    $assetStatusColors = [
+                        'In Use'       => ['#dcfce7', '#15803d'],
+                        'In Storage'   => ['#f1f5f9', '#475569'],
+                        'Under Repair' => ['#fef3c7', '#92400e'],
+                        'Retired'      => ['#e5e7eb', '#6b7280'],
+                        'Lost'         => ['#fee2e2', '#b91c1c'],
+                    ];
+                @endphp
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    @foreach($equipmentOnLoan as $asset)
+                        @php [$assetBg, $assetColor] = $assetStatusColors[$asset->status] ?? ['#f1f5f9', '#475569']; @endphp
+                        <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:8px;background:#fafafa;border:1px solid #e5e7eb;">
+                            @if($asset->photo_path)
+                                <img src="{{ route('admin.finance.inventory-assets.photo', $asset) }}" alt="" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid #e5e7eb;">
+                            @else
+                                <div style="width:44px;height:44px;border-radius:8px;background:#eef6f2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2e7d5e" style="width:22px;height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                </div>
+                            @endif
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-size:0.88rem;font-weight:700;color:#1b4332;">{{ $asset->name }}</div>
+                                <div style="font-size:0.78rem;color:#6b7280;">
+                                    {{ $asset->category }}@if($asset->brand) &middot; {{ $asset->brand }}@endif @if($asset->model){{ $asset->model }}@endif@if($asset->serial_number) &middot; SN: {{ $asset->serial_number }}@endif
+                                </div>
+                                @if($asset->assigned_date)
+                                    <div style="font-size:0.76rem;color:#9ca3af;margin-top:2px;">On loan since {{ $asset->assigned_date->format('d M Y') }} ({{ $asset->duration_used }})</div>
+                                @endif
+                                @if($asset->notes)
+                                    <div style="font-size:0.76rem;color:#6b7280;margin-top:4px;">Note: {{ $asset->notes }}</div>
+                                @endif
+                            </div>
+                            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+                                <span style="font-size:0.75rem;font-weight:600;padding:3px 10px;border-radius:20px;background:{{ $assetBg }};color:{{ $assetColor }};">{{ $asset->status }}</span>
+                                <span style="font-size:0.72rem;color:#9ca3af;">{{ $asset->condition }} condition</span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+        </div>{{-- /tab-equipment --}}
 
         {{-- ===== NEW FOLDER MODAL ===== --}}
         <div class="doc-modal-overlay" id="docFolderModal">
