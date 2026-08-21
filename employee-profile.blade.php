@@ -2394,18 +2394,18 @@
         </div>{{-- /tab-kpi --}}
 
         <div class="bhr-tab-pane" id="tab-equipment">
-            @php $equipmentOnLoan = $employee->equipmentOnLoan; @endphp
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;gap:16px;">
-                <div>
-                    <h3 style="font-size:0.95rem;font-weight:700;color:#1b4332;margin:0 0 4px;">Equipment on loan</h3>
-                    <p style="font-size:0.82rem;color:#6b7280;margin:0;">Company assets currently assigned to {{ $employee->first_name }} — their responsibility to look after and return if they leave.</p>
-                </div>
-                @if($equipmentOnLoan->isNotEmpty())
-                <a href="{{ route('admin.finance.inventory-assets.index') }}" target="_blank"
-                   style="font-size:0.8rem;font-weight:600;color:#2e7d5e;text-decoration:none;padding:6px 14px;border:1px solid #2e7d5e;border-radius:6px;white-space:nowrap;flex-shrink:0;">
-                    Manage in Inventory &rarr;
-                </a>
-                @endif
+            @php
+                $equipmentOnLoan = $employee->equipmentOnLoan;
+                // Casual/first-call name for the friendly copy below — the last
+                // word of first_name, so a compound first name like "Gusti Ayu"
+                // reads as "Ayu" (how she's actually addressed day-to-day),
+                // while a single-word first name is unaffected.
+                $casualNameParts = explode(' ', trim($employee->first_name));
+                $casualName = end($casualNameParts) ?: $employee->first_name;
+            @endphp
+            <div style="margin-bottom:14px;">
+                <h3 style="font-size:0.95rem;font-weight:700;color:#1b4332;margin:0 0 4px;">Equipment on loan</h3>
+                <p style="font-size:0.82rem;color:#6b7280;margin:0;">📦 Here's the gear on loan to you, {{ $casualName }} — take good care of it, and don't forget to hand it back if you ever head off to new adventures! 🤝</p>
             </div>
 
             @if($equipmentOnLoan->isEmpty())
