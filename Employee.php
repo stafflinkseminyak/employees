@@ -11,7 +11,7 @@ class Employee extends Model
 
     protected $fillable = [
         'contract_id', 'first_name', 'middle_name', 'last_name', 'title', 'position_title',
-        'division_id', 'sub_division_id', 'position_id', 'manager_id', 'employment_basis', 'phone', 'home_phone', 'work_phone', 'work_extension',
+        'division_id', 'sub_division_id', 'position_id', 'manager_id', 'manager_external_id', 'employment_basis', 'phone', 'home_phone', 'work_phone', 'work_extension',
         'address', 'address_1', 'address_2', 'address_3', 'city', 'territory', 'postcode', 'country',
         'id_number', 'gender', 'blood_type', 'allergies', 'medical_conditions', 'medical_notes',
         'religion', 'birth_info', 'email', 'personal_email', 'visa_type', 'visa_expiry',
@@ -37,10 +37,23 @@ class Employee extends Model
     public function directReports() { return $this->hasMany(Employee::class, 'manager_id'); }
 
     /**
-     * The full reporting chain above this employee, immediate manager first
-     * — e.g. [Manager, Manager's manager, ...] up to whoever has no manager
-     * set (the top of the org). Used to render "Reports to" as a numbered
-     * list (①②③...) instead of a single hardcoded name.
+     * A person at the top of the org (e.g. a Director) who deliberately has
+     * no Employee record of their own — see ManagerExternal for why. Only
+     * meaningful when manager_id is null; an employee reports to either a
+     * real Employee (manager_id) or an external contact (manager_external_id),
+     * never both — see updateEmployee()'s handling of these two fields.
+     */
+    public function managerExternal() { return $this->belongsTo(ManagerExternal::class); }
+
+    /**
+     * The full reporting chain above this employee, immediate manager first,
+     * as plain ['name' => ..., 'title' => ...] entries (deliberately NOT
+     * Employee/ManagerExternal instances — the blade that renders this as a
+     * numbered ①②③ list doesn't need to care which of the two a given link
+     * came from). Walks manager_id as far as it goes; if whoever's at the
+     * end of that chain has no manager_id but does have a manager_external_id,
+     * that external contact becomes the final link. Stops there — an
+     * external contact is always the top, it never has its own manager.
      *
      * $maxDepth guards against a bad manager_id assignment accidentally
      * creating a cycle (A reports to B who reports back to A) — without it,
@@ -50,15 +63,24 @@ class Employee extends Model
     {
         $chain = [];
         $seenIds = [$this->id];
-        $current = $this->manager;
+        $current = $this;
 
-        while ($current && count($chain) < $maxDepth) {
-            if (in_array($current->id, $seenIds, true)) {
-                break;
+        while (count($chain) < $maxDepth) {
+            if ($current->manager_id) {
+                $next = $current->manager;
+                if (!$next || in_array($next->id, $seenIds, true)) {
+                    break;
+                }
+                $chain[] = ['name' => $next->full_name, 'title' => $next->position_title];
+                $seenIds[] = $next->id;
+                $current = $next;
+                continue;
             }
-            $chain[] = $current;
-            $seenIds[] = $current->id;
-            $current = $current->manager;
+
+            if ($current->manager_external_id && $current->managerExternal) {
+                $chain[] = ['name' => $current->managerExternal->name, 'title' => $current->managerExternal->title];
+            }
+            break;
         }
 
         return $chain;

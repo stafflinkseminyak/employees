@@ -672,7 +672,7 @@ class AdminController extends Controller
      */
     public function showEmployeeProfile($id)
     {
-        $employee = \App\Models\Employee::with(['division', 'subDivision', 'position', 'manager', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders', 'equipmentOnLoan'])->findOrFail($id);
+        $employee = \App\Models\Employee::with(['division', 'subDivision', 'position', 'manager', 'managerExternal', 'payrollDetail', 'documents', 'emergencyContacts', 'employmentDetail', 'folders', 'equipmentOnLoan'])->findOrFail($id);
         $absences = \App\Models\EmployeeAbsence::where('employee_id', $employee->id)
             ->orderBy('start_date', 'desc')
             ->get();
@@ -786,6 +786,7 @@ class AdminController extends Controller
         $possibleManagers = \App\Models\Employee::where('id', '!=', $employee->id)
             ->orderBy('first_name')->orderBy('last_name')
             ->get(['id', 'first_name', 'middle_name', 'last_name', 'position_title']);
+        $externalManagers = \App\Models\ManagerExternal::orderBy('name')->get(['id', 'name', 'title']);
 
         return view('admin.linkers-hub.employee-profile', [
             'employee'           => $employee,
@@ -793,6 +794,7 @@ class AdminController extends Controller
             'allSubDivisions'    => $allSubDivisions,
             'allPositions'       => $allPositions,
             'possibleManagers'   => $possibleManagers,
+            'externalManagers'   => $externalManagers,
             'absences'           => $absences,
             'profileProgress'    => $profileProgress,
             'requiredFolders'    => $requiredChecklist,
@@ -1670,22 +1672,51 @@ class AdminController extends Controller
             }
             $employee->position_id = $positionId;
         }
-        // "Reports to" — a self-referencing manager_id. Reject setting
-        // yourself as your own manager, and reject any assignment that would
-        // create a cycle (the chosen manager's own chain already loops back
-        // to this employee), same guard reportingChain() uses when reading it.
-        if ($request->has('manager_id')) {
-            $managerId = $request->manager_id ?: null;
+        // "Reports to" — either a real Employee (manager_id) or a Director/
+        // exec with no Employee record of their own (manager_external_id),
+        // never both. Reject setting yourself as your own manager, and
+        // reject any manager_id assignment that would create a cycle (the
+        // chosen manager already reports, directly or indirectly, to this
+        // employee) by walking manager_id upward from the proposed manager.
+        if ($request->has('manager_id') || $request->has('manager_external_id')) {
+            $managerId = $request->has('manager_id') ? ($request->manager_id ?: null) : $employee->manager_id;
+            $managerExternalId = $request->has('manager_external_id') ? ($request->manager_external_id ?: null) : $employee->manager_external_id;
+
             if ($managerId && (int) $managerId === $employee->id) {
-                // Can't be your own manager.
+                $managerId = null; // can't be your own manager
+            } elseif ($managerId && !\App\Models\Employee::where('id', $managerId)->exists()) {
                 $managerId = null;
             } elseif ($managerId) {
-                $proposedManager = \App\Models\Employee::find($managerId);
-                $wouldCycle = $proposedManager
-                    && in_array($employee->id, array_map(fn ($e) => $e->id, $proposedManager->reportingChain()), true);
-                $managerId = ($proposedManager && !$wouldCycle) ? $proposedManager->id : null;
+                $seenIds = [$employee->id];
+                $walker = \App\Models\Employee::find($managerId);
+                $wouldCycle = false;
+                while ($walker) {
+                    if (in_array($walker->id, $seenIds, true)) {
+                        $wouldCycle = true;
+                        break;
+                    }
+                    $seenIds[] = $walker->id;
+                    $walker = $walker->manager;
+                }
+                if ($wouldCycle) {
+                    $managerId = null;
+                }
             }
+
+            if ($managerExternalId && !\App\Models\ManagerExternal::where('id', $managerExternalId)->exists()) {
+                $managerExternalId = null;
+            }
+
+            // Mutually exclusive: whichever one this request explicitly set
+            // wins and clears the other.
+            if ($request->has('manager_id') && $managerId) {
+                $managerExternalId = null;
+            } elseif ($request->has('manager_external_id') && $managerExternalId) {
+                $managerId = null;
+            }
+
             $employee->manager_id = $managerId;
+            $employee->manager_external_id = $managerExternalId;
         }
         if ($request->has('notice_period')) {
             $employee->notice_period = $request->notice_period ?: null;
@@ -2181,6 +2212,25 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Add a "Reports to" option for someone with no Employee record of their
+     * own (e.g. a Director) — see ManagerExternal for why this is a separate,
+     * deliberately minimal table rather than a stripped-down Employee row.
+     */
+    public function storeManagerExternal(Request $request)
+    {
+        $data = $request->validate([
+            'name'  => ['required', 'string', 'max:150'],
+            'title' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        $manager = \App\Models\ManagerExternal::create($data);
+
+        return response()->json([
+            'success' => true,
+            'manager' => ['id' => $manager->id, 'name' => $manager->name, 'title' => $manager->title],
+        ]);
+    }
 
     /**
      * Validate an employee name against spam, profanity, and garbage patterns.

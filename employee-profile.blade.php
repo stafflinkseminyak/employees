@@ -1443,9 +1443,9 @@
                                     <span class="emp-v muted">Not set</span>
                                 @else
                                     <div class="emp-v" style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
-                                        @foreach($reportingChain as $i => $chainManager)
+                                        @foreach($reportingChain as $i => $chainLink)
                                             <div style="display:flex;align-items:center;gap:8px;">
-                                                <span>{{ $chainManager->full_name }}{{ $chainManager->position_title ? ' · ' . $chainManager->position_title : '' }}</span>
+                                                <span>{{ $chainLink['name'] }}{{ $chainLink['title'] ? ' · ' . $chainLink['title'] : '' }}</span>
                                                 <span style="width:20px;height:20px;border-radius:50%;background:#2e7d5e;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ $i + 1 }}</span>
                                             </div>
                                         @endforeach
@@ -3402,6 +3402,27 @@
     </div>
 </div>
 
+{{-- 9. Add "Reports to" contact with no employee profile (e.g. a Director) --}}
+<div class="emc-overlay" id="addExternalManagerOverlay" style="z-index:1100;">
+    <div class="emc-box" style="max-width:440px;">
+        <div class="emc-header">
+            <h3>Add someone without an employee profile</h3>
+            <button type="button" class="emc-close" onclick="closeAddExternalManagerModal()">&times;</button>
+        </div>
+        <div class="emc-body">
+            <p style="margin:0 0 16px;font-size:0.85rem;color:#1b4332;background:#eef6f2;border:1px solid #d3e8de;border-radius:8px;padding:10px 14px;">
+                For leadership who shouldn't have a full employee profile (e.g. a Director). Only their name and title are stored — no personal or HR data.
+            </p>
+            <div class="emc-field"><label>Name <span style="color:#e74c5e;">*</span></label><input type="text" id="extMgr_name" class="emc-input" style="width:100%;" placeholder="e.g. Vida Gholami"></div>
+            <div class="emc-field"><label>Title</label><input type="text" id="extMgr_title" class="emc-input" style="width:100%;" placeholder="e.g. Director"></div>
+        </div>
+        <div class="emc-footer">
+            <button type="button" class="emc-btn-outline" onclick="closeAddExternalManagerModal()">Cancel</button>
+            <button type="button" class="emc-btn-primary" id="addExternalManagerSaveBtn" onclick="submitAddExternalManager()">Add</button>
+        </div>
+    </div>
+</div>
+
 
 <script>
 // Tab switching
@@ -3815,6 +3836,7 @@ var PERSONAL_COUNTRY_LIST = @json($countryList);
         'sub_division_id'          => $employee->sub_division_id,
         'position_id'              => $employee->position_id,
         'manager_id'                => $employee->manager_id,
+        'manager_external_id'       => $employee->manager_external_id,
     );
     $__payData = array(
         'salary'        => $pgf('salary'),
@@ -3833,6 +3855,11 @@ var ALL_MANAGERS = @json($possibleManagers->map(fn ($m) => [
     'id' => $m->id,
     'label' => $m->full_name . ($m->position_title ? ' — ' . $m->position_title : ''),
 ]));
+var ALL_EXTERNAL_MANAGERS = @json($externalManagers->map(fn ($m) => [
+    'id' => $m->id,
+    'label' => $m->name . ($m->title ? ' — ' . $m->title : ''),
+]));
+var STORE_MANAGER_EXTERNAL_URL = "{{ route('admin.linkers-hub.store-manager-external') }}";
 
 /* ---------- 1. Hours of work summary modal ---------- */
 /* All data comes from the employee record — nothing is hardcoded. */
@@ -4267,6 +4294,82 @@ function rolePositionOpts(divisionId, subDivisionId, selectedPositionId) {
     }).join('');
 }
 
+/* "Reports to" options — real employees (ALL_MANAGERS) plus external contacts
+   with no Employee record of their own (ALL_EXTERNAL_MANAGERS, e.g. a
+   Director). Option values are prefixed ("emp-"/"ext-") so submitRoleModal()
+   knows which of manager_id/manager_external_id to send. */
+function roleManagerOpts(managerId, managerExternalId) {
+    var html = '<option value="">No manager set</option>';
+    if (ALL_MANAGERS.length) {
+        html += '<optgroup label="Employees">' + ALL_MANAGERS.map(function(m) {
+            return '<option value="emp-' + m.id + '"' + (managerId != null && m.id == managerId ? ' selected' : '') + '>' + m.label + '</option>';
+        }).join('') + '</optgroup>';
+    }
+    if (ALL_EXTERNAL_MANAGERS.length) {
+        html += '<optgroup label="Leadership (no employee profile)">' + ALL_EXTERNAL_MANAGERS.map(function(m) {
+            return '<option value="ext-' + m.id + '"' + (managerExternalId != null && m.id == managerExternalId ? ' selected' : '') + '>' + m.label + '</option>';
+        }).join('') + '</optgroup>';
+    }
+    html += '<option value="__add_external__">+ Add someone without an employee profile…</option>';
+    return html;
+}
+
+function onRoleManagerSelectChange() {
+    var select = document.getElementById('role_manager_id');
+    if (select && select.value === '__add_external__') {
+        select.value = ''; // don't leave the placeholder "selected" while the mini modal is open
+        openAddExternalManagerModal();
+    }
+}
+
+function openAddExternalManagerModal() {
+    document.getElementById('extMgr_name').value = '';
+    document.getElementById('extMgr_title').value = '';
+    document.getElementById('addExternalManagerOverlay').classList.add('open');
+}
+
+function closeAddExternalManagerModal() {
+    document.getElementById('addExternalManagerOverlay').classList.remove('open');
+}
+
+function submitAddExternalManager() {
+    var name = document.getElementById('extMgr_name').value.trim();
+    if (!name) { showToast('Name is required', 'error'); return; }
+    var title = document.getElementById('extMgr_title').value.trim();
+
+    var btn = document.getElementById('addExternalManagerSaveBtn');
+    var original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    fetch(STORE_MANAGER_EXTERNAL_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ name: name, title: title })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = original;
+        if (data.success) {
+            ALL_EXTERNAL_MANAGERS.push({ id: data.manager.id, label: data.manager.name + (data.manager.title ? ' — ' + data.manager.title : '') });
+            var select = document.getElementById('role_manager_id');
+            if (select) {
+                select.innerHTML = roleManagerOpts(null, data.manager.id);
+            }
+            closeAddExternalManagerModal();
+            showToast('✓ Added ' + data.manager.name, 'success');
+        } else {
+            showToast('Failed to add: ' + (data.message || 'Unknown error'), 'error');
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = original;
+        showToast('Network error. Please try again.', 'error');
+    });
+}
+
 function onRoleDivisionChange() {
     var divSelect = document.getElementById('role_division_id');
     var subSelect = document.getElementById('role_sub_division_id');
@@ -4325,12 +4428,7 @@ function openSimpleEditModal(target) {
                     '<select id="role_position_id" class="emc-select" style="width:100%;">' + rolePositionOpts(r.division_id, r.sub_division_id, r.position_id) + '</select>' +
                 '</div>' +
                 '<div class="emc-field"><label>Reports to</label>' +
-                    '<select id="role_manager_id" class="emc-select" style="width:100%;">' +
-                        '<option value="">No manager set</option>' +
-                        ALL_MANAGERS.map(function(m) {
-                            return '<option value="' + m.id + '"' + (m.id == r.manager_id ? ' selected' : '') + '>' + m.label + '</option>';
-                        }).join('') +
-                    '</select>' +
+                    '<select id="role_manager_id" class="emc-select" style="width:100%;" onchange="onRoleManagerSelectChange()">' + roleManagerOpts(r.manager_id, r.manager_external_id) + '</select>' +
                 '</div>' +
                 '<div class="emc-field"><label>Probation required</label>' +
                     '<div class="emc-pill-group">' +
@@ -4829,12 +4927,18 @@ function submitRoleModal() {
         division_id:             document.getElementById('role_division_id').value,
         sub_division_id:         document.getElementById('role_sub_division_id').value,
         position_id:             document.getElementById('role_position_id').value,
-        manager_id:               document.getElementById('role_manager_id').value,
         probation_required:      probRequired,
         probation_end_date:      probRequired ? document.getElementById('role_probation_end_date').value : '',
         notice_during_probation: probRequired ? document.getElementById('role_notice_during_probation').value : '',
         notice_period:           document.getElementById('role_notice_period').value,
     };
+    // "Reports to" value is prefixed ("emp-123" / "ext-45") by roleManagerOpts()
+    // so it always sends BOTH fields — whichever wasn't picked goes through as
+    // '' (cleared), matching how every other field here works.
+    var managerRaw = document.getElementById('role_manager_id').value;
+    payload.manager_id = managerRaw.indexOf('emp-') === 0 ? managerRaw.slice(4) : '';
+    payload.manager_external_id = managerRaw.indexOf('ext-') === 0 ? managerRaw.slice(4) : '';
+
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     fetch(EMPLOYEE_UPDATE_URL + '?_method=PUT', {
         method: 'POST',
